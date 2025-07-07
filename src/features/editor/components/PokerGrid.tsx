@@ -38,6 +38,7 @@ export const PokerGrid = () => {
 
   const stageRef = useRef<Konva.Stage>(null);
   const isDrawing = useRef(false);
+  const dragMode = useRef<'add' | 'remove' | null>(null);
 
   useEffect(() => {
     const handleGlobalMouseUp = () => {
@@ -52,13 +53,25 @@ export const PokerGrid = () => {
   const handleCellMouseDown = (hand: string) => {
     if (!activeBrush) return;
     isDrawing.current = true;
-    updateHand(hand);
-  };
 
-  const handleCellMouseMove = (hand: string) => {
+    // Déterminer le mode au début du drag
+    const currentHandFreqs = handFrequencies.get(hand) || [];
+    const isAlreadySet = activeBrush.type === 'simple' && currentHandFreqs.some(f => f.actionId === activeBrush.id);
+    dragMode.current = isAlreadySet ? 'remove' : 'add';
+
+    updateHand(hand, dragMode.current);
+};
+
+const handleCellMouseMove = (hand: string) => {
     if (!isDrawing.current || !activeBrush) return;
-    updateHand(hand);
-  };
+    // On passe le mode déterminé au début
+    updateHand(hand, dragMode.current);
+};
+
+const handleSingleClick = (hand: string) => {
+    // Pour un clic simple, on ne passe pas de dragMode (null)
+    updateHand(hand, null);
+};
 
   return (
     <Stage width={STAGE_WIDTH} height={STAGE_HEIGHT} ref={stageRef}>
@@ -78,6 +91,7 @@ export const PokerGrid = () => {
                 y={y}
                 onMouseDown={() => handleCellMouseDown(hand)}
                 onMouseMove={() => handleCellMouseMove(hand)}
+                onClick={() => handleSingleClick(hand)}
               >
                 {/* Le conteneur de la cellule qui écoute les clics */}
                 <Rect

@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRangeStore } from '@/store/rangeStore';
+import { Action } from '@/lib/constants';
 import {
   Box,
   Typography,
@@ -17,14 +18,8 @@ import {
   Button,
   Chip,
   ClickAwayListener,
-  Popper, // <-- Importer Popper
+  Popper,
 } from '@mui/material';
-import {
-  DEFAULT_IMPLICIT_ACTION_ID,
-  DEFAULT_TEXT_COLOR,
-  DEFAULT_EMPTY_HAND_COLOR,
-  Action,
-} from '@/lib/constants';
 import AddIcon from '@mui/icons-material/Add';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked';
@@ -36,17 +31,20 @@ const DynamicColorPicker = dynamic(() => import('react-colorful').then(mod => mo
 });
 
 export const ActionsPanel = () => {
+  // --- MISE À JOUR DE LA CONNEXION AU STORE ---
   const {
-    customActions, activeActionId, activeFrequency,
-    setActiveActionId, addCustomAction, updateCustomAction, deleteCustomAction,
+    customActions,
+    activeBrush, // On utilise activeBrush
+    setActiveBrush, // On utilise setActiveBrush
+    addCustomAction,
+    updateCustomAction,
+    deleteCustomAction,
   } = useRangeStore();
 
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [editingColorId, setEditingColorId] = useState<string | null>(null);
   const [tempEditedName, setTempEditedName] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
-
-  // Nouvel état pour l'ancre du Popper
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
@@ -66,8 +64,7 @@ export const ActionsPanel = () => {
     updateCustomAction(actionId, { name: tempEditedName.trim() || 'Nom Action' });
     setEditingNameId(null);
   };
-
-  // On passe maintenant l'événement pour récupérer l'élément cliqué (l'ancre)
+  
   const handleColorClick = (event: React.MouseEvent<HTMLElement>, action: Action) => {
     setAnchorEl(event.currentTarget);
     setEditingColorId(action.id);
@@ -78,51 +75,61 @@ export const ActionsPanel = () => {
     setEditingColorId(null);
   };
 
+  // --- MISE À JOUR DE LA LOGIQUE D'ACTIVATION ---
+  const handleBrushSelect = (actionId: string) => {
+    // Si on clique sur le pinceau déjà actif, on le désactive
+    if (activeBrush?.type === 'simple' && activeBrush.id === actionId) {
+        setActiveBrush(null);
+    } else {
+        // Sinon, on l'active
+        setActiveBrush({ type: 'simple', id: actionId });
+    }
+  };
+
   return (
-    <Paper elevation={3} sx={{ width: { xs: '100%', md: '300px' }, p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Typography variant="h6" gutterBottom>Actions de Range</Typography>
+    <Paper elevation={3} sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Typography variant="h6" gutterBottom>Actions</Typography>
       <Divider sx={{ my: 1 }} />
 
       <List sx={{ maxHeight: 400, overflow: 'auto', p: 0 }}>
-        {customActions.map(action => (
-          <ListItem key={action.id} disablePadding sx={{ backgroundColor: activeActionId === action.id ? 'action.selected' : 'transparent' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', p: 1 }}>
-              <IconButton onClick={() => setActiveActionId(action.id === activeActionId ? '' : action.id)} size="small" sx={{ mr: 1 }}>
-                {activeActionId === action.id ? <RadioButtonCheckedIcon color="primary" /> : <RadioButtonUncheckedIcon />}
-              </IconButton>
-              
-              <Tooltip title="Changer la couleur" arrow>
-                <span>
-                  <Button
-                    sx={{ minWidth: '36px', height: '36px', backgroundColor: action.color, '&:hover': { backgroundColor: action.color, opacity: 0.8 } }}
-                    onClick={(e) => handleColorClick(e, action)}
+        {customActions.map(action => {
+          const isSelected = activeBrush?.type === 'simple' && activeBrush.id === action.id;
+          return (
+            <ListItem key={action.id} disablePadding sx={{ backgroundColor: isSelected ? 'action.selected' : 'transparent' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', p: 1 }}>
+                <IconButton onClick={() => handleBrushSelect(action.id)} size="small" sx={{ mr: 1 }}>
+                  {isSelected ? <RadioButtonCheckedIcon color="primary" /> : <RadioButtonUncheckedIcon />}
+                </IconButton>
+                
+                <Tooltip title="Changer la couleur" arrow>
+                  <span>
+                    <Button
+                      sx={{ minWidth: '36px', height: '36px', backgroundColor: action.color, '&:hover': { backgroundColor: action.color, opacity: 0.8 } }}
+                      onClick={(e) => handleColorClick(e, action)}
+                    />
+                  </span>
+                </Tooltip>
+
+                {editingNameId === action.id ? (
+                  <TextField
+                    inputRef={nameInputRef} value={tempEditedName} onChange={(e) => setTempEditedName(e.target.value)}
+                    onBlur={() => handleNameBlur(action.id)} onKeyPress={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
                   />
-                </span>
-              </Tooltip>
+                ) : (
+                  <Typography onClick={() => { setEditingNameId(action.id); setTempEditedName(action.name); }} sx={{ flexGrow: 1, ml: 1, cursor: 'pointer' }}>
+                    {action.name}
+                  </Typography>
+                )}
 
-              {/* Le ColorPicker n'est PLUS rendu ici */}
-
-              {editingNameId === action.id ? (
-                <TextField
-                  inputRef={nameInputRef} value={tempEditedName} onChange={(e) => setTempEditedName(e.target.value)}
-                  onBlur={() => handleNameBlur(action.id)} onKeyPress={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                  /* ... autres props ... */
-                />
-              ) : (
-                <Typography onClick={() => { if (action.id !== DEFAULT_IMPLICIT_ACTION_ID) { setEditingNameId(action.id); setTempEditedName(action.name); } }}>
-                  {action.name}
-                </Typography>
-              )}
-
-              <IconButton edge="end" onClick={() => deleteCustomAction(action.id)} disabled={action.id === DEFAULT_IMPLICIT_ACTION_ID}>
-                <CloseIcon />
-              </IconButton>
-            </Box>
-          </ListItem>
-        ))}
+                <IconButton edge="end" onClick={() => deleteCustomAction(action.id)}>
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </ListItem>
+          );
+        })}
       </List>
       
-      {/* Le Popper est rendu ici, EN DEHORS de la liste */}
       <Popper open={Boolean(editingColorId)} anchorEl={anchorEl} placement="bottom-start" sx={{ zIndex: 1200 }}>
         <ClickAwayListener onClickAway={handleColorPickerClose}>
           <Paper elevation={5}>
@@ -137,8 +144,6 @@ export const ActionsPanel = () => {
       <Button onClick={handleAddAction} variant="outlined" fullWidth startIcon={<AddIcon />}>
         Ajouter Action
       </Button>
-
-      {/* ... Le reste du composant (Chip, etc.) ... */}
     </Paper>
   );
 };
